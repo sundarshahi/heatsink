@@ -55,7 +55,7 @@ cmd_check() {
   local command="" json=0
   while [ $# -gt 0 ]; do
     case "$1" in
-      --command) command="${2:-}"; shift 2 ;;
+      --command) command="${2:-}"; shift 2 2>/dev/null || break ;;
       --json)    json=1; shift ;;
       *)         shift ;;
     esac
@@ -78,7 +78,7 @@ cmd_check() {
 cmd_wrap() {
   [ "${1:-}" = "--" ] && shift
   [ $# -ge 1 ] || usage
-  local command="$*"
+  local command; command=$(printf '%q ' "$@")
   hs_evaluate "$command"
   case "$HS_VERDICT" in
     deny)
@@ -125,13 +125,15 @@ cmd_doctor() {
 }
 
 cmd_reap() {
-  local do_kill=0 a
+  local do_kill=0 dry_run=0 a
   for a in "$@"; do
     case "$a" in
-      --kill) do_kill=1 ;;
-      --dry-run) do_kill=0 ;;
+      --kill)    do_kill=1 ;;
+      --dry-run) dry_run=1 ;;
     esac
   done
+  # --dry-run always wins, regardless of flag order — safety direction.
+  [ "$dry_run" -eq 1 ] && do_kill=0
   local orphans; orphans=$(hs_orphans)
   if [ -z "$orphans" ]; then echo "heatsink: no orphaned burners found."; return 0; fi
   echo "orphaned burners:"

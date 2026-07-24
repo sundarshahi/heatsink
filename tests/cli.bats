@@ -6,6 +6,12 @@ setup() {
   export HEATSINK_FAKE_PS="$FIXTURES/ps-orphans.txt" HEATSINK_TEST_USER=dev
 }
 
+@test "check --command with missing value does not hang" {
+  run bash -c 'ulimit -t 2; "$1" check --command' _ "$HS"
+  [ "$status" -eq 0 ]
+  [ "$output" = "ok" ]
+}
+
 @test "check: light command is ok even under load" {
   HEATSINK_FAKE_LOAD=99 run "$HS" check --command "git status"
   [ "$status" -eq 0 ]; [ "$output" = "ok" ]
@@ -54,6 +60,17 @@ setup() {
   [ "$status" -eq 75 ]
 }
 
+@test "wrap: throttle path still classifies and rewrites a heavy command" {
+  HEATSINK_FAKE_LOAD=9.5 HEATSINK_FAKE_CORES=10 run "$HS" wrap -- npx vitest run
+  [[ "$output" == *"throttled"* ]]
+}
+
+@test "wrap: quoted arg with a space survives throttle rewrite unsplit" {
+  HEATSINK_FAKE_LOAD=9.5 HEATSINK_FAKE_CORES=10 run "$HS" wrap -- npx vitest run --reporter "my file.txt"
+  [[ "$output" == *"heatsink: throttled ->"* ]]
+  [[ "$output" == *'my\ file.txt'* ]]
+}
+
 @test "doctor: reports load, burners and orphans" {
   HEATSINK_FAKE_LOAD=99 run "$HS" doctor
   [ "$status" -eq 0 ]
@@ -67,4 +84,18 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"74586"* ]]
   [[ "$output" == *"--kill"* ]]
+}
+
+@test "reap: --dry-run always wins over --kill regardless of order" {
+  run "$HS" reap --kill --dry-run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"report-only"* ]]
+  [[ "$output" != *"SIGTERM"* ]]
+}
+
+@test "reap: --dry-run --kill (dry-run first) still wins, kills nothing" {
+  run "$HS" reap --dry-run --kill
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"report-only"* ]]
+  [[ "$output" != *"SIGTERM"* ]]
 }
