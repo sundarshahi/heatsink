@@ -33,8 +33,8 @@ runs, it checks load and thermal state and does one of four things:
 - **throttle** — command matches a known heavy build/test runner and has a
   parallelism knob heatsink can safely lower; the rewritten command runs
   instead.
-- **deny** — already oversubscribed (or the OS is thermally throttling);
-  the command doesn't run at all.
+- **deny** — already oversubscribed, or near saturation while the OS is
+  thermally throttling; the command doesn't run at all.
 
 **The one invariant that matters: a rewrite only ever *reduces* parallelism.**
 heatsink never raises a worker count, never adds `-j` to a bare `make`, and
@@ -52,9 +52,29 @@ it warns instead of mangling your command.
 | `cargo test` | `--test-threads[= ]N` | Lowers an existing value, or appends `-- --test-threads=N` if absent |
 | `cargo build` | `CARGO_BUILD_JOBS=N` env var | Lowers an existing value, or prepends the env var if absent |
 | `go test` | `-p`, `-p=`, or `-pN` (all three forms) | Lowers an existing value, or appends `-p N` if absent |
-| `make` | `-j N` | Lowers an existing value; **bare `make` (no `-j`) is left alone** — make defaults to serial, and heatsink never adds parallelism, only removes it |
+| `make`, `cmake --build` | `-j N` | Lowers an existing value; **bare invocations (no `-j`) are left alone** — make defaults to serial, and heatsink never adds parallelism, only removes it |
 | `npm`/`yarn`/`pnpm`/`bun` `test`/`build`, `turbo run` | a forwarded `--maxWorkers`/`--workers` flag | Env var `VITEST_MAX_THREADS=N` always prepended; forwarded flag also lowered in place when higher than N; at/below target flag passes unchanged |
-| `webpack`, `tsc`, `gradle`, `mvn`, `bazel`, `cmake --build` | — | Flagged as heavy but has no known safe knob — always **warn**, never rewritten |
+| `webpack`, `tsc`, `gradle`, `mvn`, `bazel` | — | Flagged as heavy but has no known safe knob — always **warn**, never rewritten |
+
+### `check` — verdict without running anything
+
+For a custom harness, ask heatsink for a verdict and act on it yourself:
+
+```bash
+$ heatsink check --command "npx vitest run" --json
+{
+  "verdict": "throttle",
+  "load": 9.5,
+  "cores": 10,
+  "thermal": "ok",
+  "rewritten": "npx vitest run --maxWorkers=2",
+  "reason": "load 9.5 on 10 cores — throttled to 2 workers."
+}
+```
+
+Without `--json` it prints the verdict (and rewritten command, if any) as
+plain text. `heatsink hook <claude-code|cursor|codex>` is the stdin/stdout
+entrypoint the adapters below use — see each adapter's README.
 
 ### `doctor` — why is my machine hot?
 
@@ -100,6 +120,10 @@ kill your processes is a guard nobody will trust. You always have to ask for
 
 ## Install
 
+**Prerequisites:** bash and `jq`. macOS 15+ ships `jq`; on Linux install it
+first (`apt install jq` / `dnf install jq`). Without `jq` the hook adapters
+fail open — heatsink will appear installed but never guard anything.
+
 **Claude Code (plugin):**
 
 ```
@@ -118,14 +142,18 @@ cd heatsink
 make install   # installs to ~/.local/bin
 ```
 
+Make sure `~/.local/bin` is on your `PATH`
+(`export PATH="$HOME/.local/bin:$PATH"` — it isn't by default on macOS),
+then verify with `heatsink doctor`.
+
 ## Adapter status
 
 | Adapter | Status |
 |---|---|
 | `claude-code` | tested |
-| `cursor` | untested in the wild |
-| `codex` | experimental |
-| generic `wrap` | tested |
+| [`cursor`](adapters/cursor/README.md) | untested in the wild |
+| [`codex`](adapters/codex/README.md) | experimental |
+| generic [`wrap`](adapters/generic/README.md) | tested |
 
 `cursor` is built against Cursor's documented `beforeShellExecution` hooks
 contract but isn't exercised in CI against a real Cursor install. `codex`
@@ -186,6 +214,13 @@ stdin isn't valid JSON, if a signal read fails, if anything at all goes
 wrong — heatsink gets out of the way and your command runs exactly as you
 typed it. A guard that can break your workflow by breaking itself is worse
 than no guard at all.
+
+## Development
+
+```bash
+make lint   # needs shellcheck:  brew install shellcheck  /  apt install shellcheck
+make test   # needs bats:        brew install bats-core   /  apt install bats
+```
 
 ## License
 
