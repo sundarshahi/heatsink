@@ -69,6 +69,13 @@ hs_rewrite() {
       return 0 ;;
 
     *"cargo build"*)
+      # A forwarded -j/--jobs flag wins over CARGO_BUILD_JOBS env, so check first.
+      cur=$(printf '%s' "$cmd" | sed -n -E 's/.*(-j|--jobs)[= ]?([0-9]+).*/\2/p')
+      if [ -n "$cur" ]; then
+        [ "$cur" -le "$n" ] && return 2
+        printf '%s\n' "$cmd" | sed -E "s/(-j|--jobs)[= ]?$cur/\1 $n/"
+        return 0
+      fi
       if printf '%s' "$cmd" | grep -q 'CARGO_BUILD_JOBS='; then
         cur=$(printf '%s' "$cmd" | sed -n 's/.*CARGO_BUILD_JOBS=\([0-9][0-9]*\).*/\1/p')
         [ -n "$cur" ] && [ "$cur" -le "$n" ] && return 2

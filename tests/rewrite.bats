@@ -69,6 +69,18 @@ setup() { . "$HS_REPO/lib/rewrite.sh"; }
   [ "$output" = "CARGO_BUILD_JOBS=2 cargo build --release" ]
 }
 
+@test "cargo build with forwarded -j is lowered in place, not just env-prefixed" {
+  run hs_rewrite "cargo build -j 16" 2
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"-j 2"* ]]
+  [[ "$output" != *"16"* ]]
+}
+
+@test "cargo build with forwarded -j at/below target passes through" {
+  run hs_rewrite "cargo build -j 2" 4
+  [ "$status" -eq 2 ]
+}
+
 @test "make -j8 is lowered to -j 2" {
   run hs_rewrite "make -j8 all" 2
   [ "$status" -eq 0 ]
