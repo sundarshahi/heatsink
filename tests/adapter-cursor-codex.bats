@@ -6,7 +6,7 @@ setup() { export HEATSINK_FAKE_CORES=10 HEATSINK_FAKE_THERMAL=ok; }
 @test "cursor: ok -> permission allow" {
   export HEATSINK_FAKE_LOAD=1
   run bash -c 'echo "{\"command\":\"npx vitest run\"}" | "$1"' _ "$HS_REPO/adapters/cursor/hook.sh"
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 0 ] || return 1
   echo "$output" | jq -e '.permission=="allow"' >/dev/null
 }
 
@@ -36,7 +36,7 @@ setup() { export HEATSINK_FAKE_CORES=10 HEATSINK_FAKE_THERMAL=ok; }
 
 @test "both fail open on garbage stdin" {
   run bash -c 'echo garbage | "$1"' _ "$HS_REPO/adapters/cursor/hook.sh"
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 0 ] || return 1
   run bash -c 'echo garbage | "$1"' _ "$HS_REPO/adapters/codex/hook.sh"
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 0 ] || return 1
 }
