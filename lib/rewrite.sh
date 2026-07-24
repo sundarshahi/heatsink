@@ -105,9 +105,9 @@ hs_rewrite() {
       fi
       return 1 ;;  # bare make is serial — NEVER add -j
 
-    *"npm test"*|*"npm run test"*|*"npm run build"*|*"yarn test"*|*"yarn build"*| \
-    *"yarn run test"*|*"yarn run build"*|*"pnpm test"*|*"pnpm build"*|*"pnpm run "*| \
-    *"bun test"*|*"bun run "*|*"turbo run"*)
+    *"npm test"*|*"npm run test"*|*"npm build"*|*"npm run build"*|*"yarn test"*| \
+    *"yarn build"*|*"yarn run test"*|*"yarn run build"*|*"pnpm test"*|*"pnpm build"*| \
+    *"pnpm run "*|*"bun test"*|*"bun build"*|*"bun run "*|*"turbo run"*)
       # A forwarded --maxWorkers/--workers flag wins over the env var, so
       # check for one first: rc 0 must mean parallelism actually drops.
       cur=$(printf '%s' "$cmd" | sed -n -E 's/.*--(maxWorkers|workers)[= ]([0-9]+).*/\2/p')

@@ -93,6 +93,15 @@ setup() { . "$HS_REPO/lib/rewrite.sh"; }
   [ "$output" = "VITEST_MAX_THREADS=2 npm test" ]
 }
 
+@test "npm build and bun build get VITEST_MAX_THREADS prefix" {
+  run hs_rewrite "npm build" 2
+  [ "$status" -eq 0 ]
+  [ "$output" = "VITEST_MAX_THREADS=2 npm build" ]
+  run hs_rewrite "bun build ./index.ts" 2
+  [ "$status" -eq 0 ]
+  [ "$output" = "VITEST_MAX_THREADS=2 bun build ./index.ts" ]
+}
+
 # --- allow unchanged (rc 2) ---
 @test "already at/below target passes through" {
   run hs_rewrite "npx vitest run --maxWorkers=2" 2
