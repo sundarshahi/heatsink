@@ -53,7 +53,7 @@ it warns instead of mangling your command.
 | `cargo build` | `CARGO_BUILD_JOBS=N` env var | Lowers an existing value, or prepends the env var if absent |
 | `go test` | `-p`, `-p=`, or `-pN` (all three forms) | Lowers an existing value, or appends `-p N` if absent |
 | `make` | `-j N` | Lowers an existing value; **bare `make` (no `-j`) is left alone** — make defaults to serial, and heatsink never adds parallelism, only removes it |
-| `npm`/`yarn`/`pnpm`/`bun` `test`/`build`, `turbo run` | a forwarded `--maxWorkers`/`--workers` flag | A forwarded flag is honored and lowered (it wins over env vars); otherwise heatsink prepends `VITEST_MAX_THREADS=N` |
+| `npm`/`yarn`/`pnpm`/`bun` `test`/`build`, `turbo run` | a forwarded `--maxWorkers`/`--workers` flag | Env var `VITEST_MAX_THREADS=N` always prepended; forwarded flag also lowered in place when higher than N; at/below target flag passes unchanged |
 | `webpack`, `tsc`, `gradle`, `mvn`, `bazel`, `cmake --build` | — | Flagged as heavy but has no known safe knob — always **warn**, never rewritten |
 
 ### `doctor` — why is my machine hot?
