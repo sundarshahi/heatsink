@@ -37,3 +37,18 @@ setup() {
   [[ "$output" != *"62652"* ]]   # ppid != 1 (live vitest)
   [[ "$output" != *"99002"* ]]   # long-lived but idle
 }
+
+@test "adversarial: root-owned yes, substring near-misses, sub-1h, and 90.0 boundary excluded" {
+  HEATSINK_FAKE_PS="$FIXTURES/ps-adversarial.txt" run hs_orphans
+  [[ "$output" != *"30001"* ]]  # root's yes — not our user
+  [[ "$output" != *"30002"* ]]  # kyes — substring, not the yes binary
+  [[ "$output" != *"30003"* ]]  # exactly 90.0 — strict >90
+  [[ "$output" != *"30004"* ]]  # /home/yes/ — path component, not binary
+  [[ "$output" != *"30005"* ]]  # 59:59 = under 1h
+  [[ "$output" != *"30006"* ]]  # exactly 90.0 — strict >90
+}
+
+@test "adversarial: >90% for >1h generic runaway still caught" {
+  HEATSINK_FAKE_PS="$FIXTURES/ps-adversarial.txt" run hs_orphans
+  [[ "$output" == *"30007"* ]]
+}
