@@ -79,10 +79,11 @@ hs_rewrite() {
       return 0 ;;
 
     *"go test"*)
-      cur=$(printf '%s' "$cmd" | sed -n -E 's/.*-p +([0-9]+).*/\1/p')
+      # -p accepts space, =, or no separator: -p 16 / -p=16 / -p16
+      cur=$(printf '%s' "$cmd" | sed -n -E 's/.*-p[= ]?([0-9]+).*/\1/p')
       if [ -n "$cur" ]; then
         [ "$cur" -le "$n" ] && return 2
-        printf '%s\n' "$cmd" | sed -E "s/-p +$cur/-p $n/"
+        printf '%s\n' "$cmd" | sed -E "s/-p[= ]?$cur/-p $n/"
       else
         printf '%s -p %s\n' "$cmd" "$n"
       fi
@@ -100,7 +101,15 @@ hs_rewrite() {
     *"npm test"*|*"npm run test"*|*"npm run build"*|*"yarn test"*|*"yarn build"*| \
     *"yarn run test"*|*"yarn run build"*|*"pnpm test"*|*"pnpm build"*|*"pnpm run "*| \
     *"bun test"*|*"bun run "*|*"turbo run"*)
-      printf 'VITEST_MAX_THREADS=%s %s\n' "$n" "$cmd"
+      # A forwarded --maxWorkers/--workers flag wins over the env var, so
+      # check for one first: rc 0 must mean parallelism actually drops.
+      cur=$(printf '%s' "$cmd" | sed -n -E 's/.*--(maxWorkers|workers)[= ]([0-9]+).*/\2/p')
+      if [ -n "$cur" ]; then
+        [ "$cur" -le "$n" ] && return 2
+        printf 'VITEST_MAX_THREADS=%s %s\n' "$n" "$cmd" | sed -E "s/--(maxWorkers|workers)[= ]$cur/--\1=$n/"
+      else
+        printf 'VITEST_MAX_THREADS=%s %s\n' "$n" "$cmd"
+      fi
       return 0 ;;
 
     *) return 1 ;;  # heavy but unknown shape -> warn, never mangle

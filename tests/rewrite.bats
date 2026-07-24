@@ -112,3 +112,22 @@ setup() { . "$HS_REPO/lib/rewrite.sh"; }
   run hs_rewrite "npx tsc --noEmit" 2
   [ "$status" -eq 1 ]
 }
+
+@test "npm test with forwarded higher --maxWorkers is lowered, not just env-prefixed" {
+  run hs_rewrite "npm run test -- --maxWorkers=16" 2
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--maxWorkers=2"* ]]
+  [[ "$output" != *"--maxWorkers=16"* ]]
+}
+
+@test "npm test with forwarded --maxWorkers at/below target passes through" {
+  run hs_rewrite "npm run test -- --maxWorkers=2" 4
+  [ "$status" -eq 2 ]
+}
+
+@test "go test -p=16 is lowered in place, no duplicate flag" {
+  run hs_rewrite "go test -p=16 ./..." 2
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"16"* ]]
+  [ "$(printf '%s' "$output" | grep -o -- '-p' | wc -l | tr -d ' ')" -eq 1 ]
+}
