@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+usage() {
+  cat >&2 <<'EOF'
+usage: heatsink <command> [args]
+  check --command "<cmd>" [--json]   verdict: ok|warn|throttle|deny
+  doctor                             why is my machine hot?
+  reap [--kill]                      find (and optionally kill) orphaned burners
+  wrap -- <cmd>                      throttle-if-needed, then run
+  hook <claude-code|cursor|codex>    harness hook entrypoint (stdin JSON)
+EOF
+  exit 2
+}
+
+[ $# -ge 1 ] || usage
+usage
