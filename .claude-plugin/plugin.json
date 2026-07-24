@@ -1,0 +1,21 @@
+{
+  "name": "heatsink",
+  "version": "0.1.0",
+  "description": "Your AI coding agent doesn't know your laptop is on fire. heatsink throttles heavy commands when load is high, finds orphaned CPU burners, and explains why your machine is hot.",
+  "author": { "name": "Sundar Shahi" },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/adapters/claude-code/hook.sh",
+            "timeout": 10,
+            "statusMessage": "heatsink: checking CPU load..."
+          }
+        ]
+      }
+    ]
+  }
+}

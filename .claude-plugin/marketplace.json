@@ -1,0 +1,11 @@
+{
+  "name": "heatsink",
+  "owner": { "name": "Sundar Shahi" },
+  "plugins": [
+    {
+      "name": "heatsink",
+      "source": "./",
+      "description": "Load/thermal guard for AI coding agents — auto-throttle heavy commands, doctor, orphan reaper."
+    }
+  ]
+}
