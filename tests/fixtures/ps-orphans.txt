@@ -1,0 +1,10 @@
+  PID  PPID USER       %CPU ELAPSED COMMAND
+74586     1 dev        41.2 24:01:11 yes
+74587     1 dev        40.6 24:01:11 yes
+  603     1 root       13.2 10-01:48:51 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+62652 62594 dev        67.2 03:04 node /repo/node_modules/.bin/vitest
+91001     1 dev        95.0 02:11:09 ruby stuck_script.rb
+91002     1 dev        95.0 05:12 ruby young_script.rb
+   85     1 dev        99.9 99:00:00 lowpid_burner
+99001     1 other      99.0 99:00:00 yes
+99002     1 dev         2.0 99:00:00 idle_daemon
