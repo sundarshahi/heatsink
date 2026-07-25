@@ -2,9 +2,14 @@
 # heatsink — load/thermal guard for AI coding agents.
 set -uo pipefail
 
-hs_src="$0"
-while [ -h "$hs_src" ]; do hs_src=$(readlink "$hs_src"); done
-HS_ROOT="$(cd "$(dirname "$hs_src")/.." && pwd)"
+hs_src="${BASH_SOURCE[0]:-$0}"
+while [ -h "$hs_src" ]; do
+  hs_dir="$(cd -P "$(dirname "$hs_src")" && pwd)"
+  hs_src="$(readlink "$hs_src")"
+  # relative symlink target -> resolve against the link's own directory
+  case "$hs_src" in /*) ;; *) hs_src="$hs_dir/$hs_src" ;; esac
+done
+HS_ROOT="$(cd -P "$(dirname "$hs_src")/.." && pwd)"
 # shellcheck source=lib/signals.sh
 . "$HS_ROOT/lib/signals.sh"
 # shellcheck source=lib/policy.sh

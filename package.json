@@ -1,6 +1,6 @@
 {
   "name": "@sundarshahi/heatsink",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Keep AI coding agents from cooking your laptop — load/thermal guard that right-sizes runaway parallel commands. Pure bash, no deps.",
   "bin": {
     "heatsink": "bin/heatsink"
