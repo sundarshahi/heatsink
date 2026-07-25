@@ -19,6 +19,13 @@ HS_ROOT="$(cd -P "$(dirname "$hs_src")/.." && pwd)"
 # shellcheck source=lib/procs.sh
 . "$HS_ROOT/lib/procs.sh"
 
+# colors only on a real terminal, and honor NO_COLOR
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  HS_B=$'\e[1m'; HS_D=$'\e[2m'; HS_R=$'\e[31m'; HS_Y=$'\e[33m'; HS_G=$'\e[32m'; HS_X=$'\e[0m'
+else
+  HS_B=; HS_D=; HS_R=; HS_Y=; HS_G=; HS_X=
+fi
+
 usage() {
   cat >&2 <<'EOF'
 usage: heatsink <command> [args]
@@ -101,30 +108,40 @@ cmd_wrap() {
 }
 
 cmd_doctor() {
-  local load cores thermal ratio
+  local load cores thermal ratio zone rc tc
   load=$(hs_load1); cores=$(hs_cores); thermal=$(hs_thermal)
   ratio=$(awk -v l="$load" -v c="$cores" 'BEGIN { if (c>0) printf "%.1f", l/c; else print "?" }')
-  echo "heatsink doctor"
+  zone=$(awk -v l="$load" -v c="$cores" 'BEGIN { r=(c>0)?l/c:0; if(r>=2.0)print"deny"; else if(r>=0.9)print"warn"; else print"ok" }')
+  rc="$HS_G"; [ "$zone" = warn ] && rc="$HS_Y"; [ "$zone" = deny ] && rc="$HS_R"
+  tc="$HS_G"; [ "$thermal" = pressure ] && tc="$HS_R"
+  echo "${HS_B}heatsink doctor${HS_X}"
   echo
-  echo "  load:    $load on $cores cores (${ratio}x)  thermal: $thermal"
+  echo "  ${HS_D}load${HS_X}    $load on $cores cores ${rc}(${ratio}x)${HS_X}   ${HS_D}thermal${HS_X} ${tc}${thermal}${HS_X}"
   echo
-  echo "  top burners:"
-  hs_top_burners 6 | awk '{printf "    %-7s %-6s %-12s %s\n", $1, $4"%", $5, substr($0, index($0,$6))}'
+  echo "  ${HS_D}top burners${HS_X}"
+  hs_top_burners 6 | awk -v W=56 -v g="$HS_G" -v y="$HS_Y" -v r="$HS_R" -v x="$HS_X" '{
+    cmd=substr($0,index($0,$6)); if(length(cmd)>W)cmd=substr(cmd,1,W-3)"..."
+    c=$4+0; col=(c>=90)?r:(c>=50)?y:g; cpu=sprintf("%-6s",$4"%")
+    printf "    %-7s %s%s%s %-12s %s\n", $1, col, cpu, x, $5, cmd
+  }'
   echo
   local orphans; orphans=$(hs_orphans)
   if [ -n "$orphans" ]; then
-    echo "  orphaned burners (parent gone, still spinning):"
-    echo "$orphans" | awk '{printf "    pid %-7s %-6s up %-12s %s\n", $1, $2"%", $3, substr($0, index($0,$4))}'
+    echo "  ${HS_R}orphaned burners${HS_X} (parent gone, still spinning):"
+    echo "$orphans" | awk -v W=56 -v r="$HS_R" -v x="$HS_X" '{
+      cmd=substr($0,index($0,$4)); if(length(cmd)>W)cmd=substr(cmd,1,W-3)"..."; cpu=sprintf("%-6s",$2"%")
+      printf "    pid %-7s %s%s%s up %-12s %s\n", $1, r, cpu, x, $3, cmd
+    }'
     echo
-    echo "  verdict: orphaned processes are burning CPU for nothing."
+    echo "  verdict: ${HS_R}orphaned processes are burning CPU for nothing.${HS_X}"
     echo "           reap them:  heatsink reap        (report)"
     echo "                       heatsink reap --kill (terminate)"
   else
-    awk -v l="$load" -v c="$cores" 'BEGIN {
-      r = (c>0) ? l/c : 0
-      if      (r >= 2.0) print "  verdict: heavily oversubscribed — stop or throttle the biggest burners above."
-      else if (r >= 0.9) print "  verdict: near saturation — avoid starting more parallel work."
-      else               print "  verdict: healthy — nothing to do."
+    awk -v l="$load" -v c="$cores" -v g="$HS_G" -v y="$HS_Y" -v r="$HS_R" -v x="$HS_X" 'BEGIN {
+      rr = (c>0) ? l/c : 0
+      if      (rr >= 2.0) print "  verdict: " r "heavily oversubscribed — stop or throttle the biggest burners above." x
+      else if (rr >= 0.9) print "  verdict: " y "near saturation — avoid starting more parallel work." x
+      else                print "  verdict: " g "healthy — nothing to do." x
     }'
   fi
 }
@@ -142,7 +159,7 @@ cmd_reap() {
   local orphans; orphans=$(hs_orphans)
   if [ -z "$orphans" ]; then echo "heatsink: no orphaned burners found."; return 0; fi
   echo "orphaned burners:"
-  echo "$orphans" | awk '{printf "  pid %-7s %-6s up %-12s %s\n", $1, $2"%", $3, substr($0, index($0,$4))}'
+  echo "$orphans" | awk -v W=56 '{cmd=substr($0,index($0,$4)); if(length(cmd)>W)cmd=substr(cmd,1,W-3)"..."; printf "  pid %-7s %-6s up %-12s %s\n", $1, $2"%", $3, cmd}'
   if [ "$do_kill" -eq 0 ]; then
     echo
     echo "report-only. re-run with --kill to terminate these."
