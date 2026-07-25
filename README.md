@@ -146,6 +146,15 @@ Make sure `~/.local/bin` is on your `PATH`
 (`export PATH="$HOME/.local/bin:$PATH"` — it isn't by default on macOS),
 then verify with `heatsink doctor`.
 
+**CLI (npm):**
+
+```bash
+npx @sundarshahi/heatsink doctor      # run without installing
+npm install -g @sundarshahi/heatsink  # or install globally
+```
+
+Still needs `jq` on your `PATH` — npm ships the scripts, not the dependency.
+
 ## Adapter status
 
 | Adapter | Status |

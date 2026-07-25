@@ -1,0 +1,45 @@
+{
+  "name": "@sundarshahi/heatsink",
+  "version": "0.1.0",
+  "description": "Keep AI coding agents from cooking your laptop — load/thermal guard that right-sizes runaway parallel commands. Pure bash, no deps.",
+  "bin": {
+    "heatsink": "bin/heatsink"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "adapters",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "make test"
+  },
+  "keywords": [
+    "cpu",
+    "thermal",
+    "load",
+    "overheat",
+    "ai-agent",
+    "claude-code",
+    "cursor",
+    "guard",
+    "parallel",
+    "throttle"
+  ],
+  "homepage": "https://github.com/sundarshahi/heatsink#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sundarshahi/heatsink.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sundarshahi/heatsink/issues"
+  },
+  "author": "Sundar Shahi",
+  "license": "MIT",
+  "os": [
+    "darwin",
+    "linux"
+  ]
+}
