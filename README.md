@@ -1,5 +1,7 @@
 # heatsink — Your AI coding agent doesn't know your laptop is on fire.
 
+![heatsink doctor on a machine at load 99](docs/img/doctor.png)
+
 ## The war story
 
 My MacBook is a 10-core machine. One afternoon it sat at a load average of
@@ -56,51 +58,135 @@ it warns instead of mangling your command.
 | `npm`/`yarn`/`pnpm`/`bun` `test`/`build`, `turbo run` | a forwarded `--maxWorkers`/`--workers` flag | Env var `VITEST_MAX_THREADS=N` always prepended; forwarded flag also lowered in place when higher than N; at/below target flag passes unchanged |
 | `webpack`, `tsc`, `gradle`, `mvn`, `bazel` | — | Flagged as heavy but has no known safe knob — always **warn**, never rewritten |
 
-### `check` — verdict without running anything
+## Usage
 
-For a custom harness, ask heatsink for a verdict and act on it yourself:
+```
+heatsink check --command "<cmd>" [--json]   verdict: ok|warn|throttle|deny
+heatsink doctor                             why is my machine hot?
+heatsink reap [--kill]                      find (and optionally kill) orphaned burners
+heatsink wrap -- <cmd>                      throttle-if-needed, then run
+heatsink hook <claude-code|cursor|codex>    harness hook entrypoint (stdin JSON)
+```
 
-```bash
+### The four verdicts, end to end
+
+Exit code is `0` for ok/warn/throttle and `1` for deny (`wrap` exits
+`75`/`EX_TEMPFAIL` on deny so a CI job can retry).
+
+![the four verdicts from heatsink check](docs/img/check.png)
+
+**ok** — machine is quiet, nothing happens:
+
+```console
+$ heatsink check --command "npx vitest run"
+ok
+```
+
+**throttle** — load is in the throttle zone and the command has a safe knob:
+
+```console
 $ heatsink check --command "npx vitest run" --json
 {
   "verdict": "throttle",
-  "load": 9.5,
+  "load": 3.58,
   "cores": 10,
   "thermal": "ok",
   "rewritten": "npx vitest run --maxWorkers=2",
-  "reason": "load 9.5 on 10 cores — throttled to 2 workers."
+  "reason": "load 3.58 on 10 cores — throttled to 2 workers."
+}
+
+$ heatsink check --command "make -j 16"
+throttle: make -j 2
+```
+
+**warn** — heavy command, no knob heatsink can safely turn:
+
+```console
+$ heatsink check --command "tsc -b"
+warn
+```
+
+**deny** — already oversubscribed, command does not run:
+
+```console
+$ heatsink check --command "cargo build"
+deny
+$ echo $?
+1
+```
+
+### `wrap` — guard a command you're about to run
+
+```console
+$ heatsink wrap -- go test ./...
+heatsink: throttled -> go test ./... -p 2
+...your test output, unchanged...
+
+$ heatsink wrap -- npx vitest run     # when denied
+heatsink: DENIED — load 21.4 on 10 cores (thermal: ok) — oversubscribed.
+Wait for load to drop, or run with reduced parallelism.
+$ echo $?
+75
+```
+
+In a Makefile or CI job:
+
+```make
+test:
+	heatsink wrap -- npx vitest run
+```
+
+### `hook` — what the agent actually sees
+
+The adapters pipe the harness's hook JSON in and emit the harness's own
+response format back out. Claude Code, throttle case:
+
+```console
+$ echo '{"tool_input":{"command":"npx vitest run"}}' | heatsink hook claude-code
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "updatedInput": {
+      "command": "npx vitest run --maxWorkers=2"
+    }
+  },
+  "systemMessage": "heatsink: load 9.5 on 10 cores — throttled to 2 workers. -> npx vitest run --maxWorkers=2"
 }
 ```
 
-Without `--json` it prints the verdict (and rewritten command, if any) as
-plain text. `heatsink hook <claude-code|cursor|codex>` is the stdin/stdout
-entrypoint the adapters below use — see each adapter's README.
+Deny case — the command never reaches the shell, and the agent is told why:
+
+```console
+$ echo '{"tool_input":{"command":"cargo build"}}' | heatsink hook claude-code
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "heatsink: load 21.4 on 10 cores (thermal: ok) — oversubscribed. Wait for load to drop, or run with reduced parallelism. Check with: heatsink doctor"
+  },
+  "systemMessage": "heatsink: blocked a heavy command (load 21.4 on 10 cores)"
+}
+```
+
+`warn` returns `additionalContext` instead — the command runs, but the agent
+is told not to stack more parallel work on top of it.
+
+### Tuning, in practice
+
+Thresholds are env vars, so you can tighten them per shell or per job:
+
+```console
+# aggressive: throttle at half a core per job, deny at 1.2x
+$ HEATSINK_THROTTLE_RATIO=0.5 HEATSINK_DENY_RATIO=1.2 heatsink wrap -- make -j 16
+
+# never rewrite below 4 workers
+$ HEATSINK_MIN_WORKERS=4 heatsink check --command "npx jest"
+throttle: npx jest --maxWorkers=4
+```
 
 ### `doctor` — why is my machine hot?
 
-```
-$ heatsink doctor
-heatsink doctor
-
-  load:    99 on 10 cores (9.9x)  thermal: ok
-
-  top burners:
-    99001   99.0%  99:00:00     yes
-    85      99.0%  99:00:00     lowpid_burner
-    91002   95.0%  05:12        ruby young_script.rb
-    91001   95.0%  02:11:09     ruby stuck_script.rb
-    62652   67.2%  03:04        node /repo/node_modules/.bin/vitest
-    74586   41.2%  24:01:11     yes
-
-  orphaned burners (parent gone, still spinning):
-    pid 74586   41.2%  up 24:01:11     yes
-    pid 74587   40.6%  up 24:01:11     yes
-    pid 91001   95.0%  up 02:11:09     ruby stuck_script.rb
-
-  verdict: orphaned processes are burning CPU for nothing.
-           reap them:  heatsink reap        (report)
-                       heatsink reap --kill (terminate)
-```
+![heatsink doctor showing orphaned burners](docs/img/doctor.png)
 
 `doctor` shows your load-to-core ratio, the top CPU consumers on the box, and
 separately calls out **orphans**: processes whose parent process is gone but
@@ -114,6 +200,8 @@ heatsink reap          # report-only: lists orphaned burners, kills nothing
 heatsink reap --kill   # SIGTERM, wait, SIGKILL any survivors
 ```
 
+![heatsink reap listing orphaned burners, report-only](docs/img/reap.png)
+
 `reap` defaults to report-only on purpose — a guard that can autonomously
 kill your processes is a guard nobody will trust. You always have to ask for
 `--kill` explicitly.
@@ -123,6 +211,9 @@ kill your processes is a guard nobody will trust. You always have to ask for
 **Prerequisites:** bash and `jq`. macOS 15+ ships `jq`; on Linux install it
 first (`apt install jq` / `dnf install jq`). Without `jq` the hook adapters
 fail open — heatsink will appear installed but never guard anything.
+
+macOS, Linux and Windows are all supported — see [Windows](#windows) for what
+that means there.
 
 **Claude Code (plugin):**
 
@@ -154,6 +245,44 @@ npm install -g @sundarshahi/heatsink  # or install globally
 ```
 
 Still needs `jq` on your `PATH` — npm ships the scripts, not the dependency.
+
+## Windows
+
+heatsink is bash, so it runs under **Git Bash** (Git for Windows) — which
+Claude Code on Windows already requires. Install with npm, not `make install`:
+npm's shim invokes the script through `bash` on your `PATH`, while
+`make install` relies on symlinks that MSYS may turn into copies.
+
+```powershell
+winget install Git.Git jqlang.jq
+npm install -g @sundarshahi/heatsink
+heatsink doctor
+```
+
+Two signals are read differently there, because Windows has no POSIX
+equivalent:
+
+| Signal | Windows source |
+|---|---|
+| load | `ProcessorQueueLength` + busy cores, via one `powershell.exe` call — the same quantity Linux's loadavg measures, sampled instantaneously instead of decayed over a minute |
+| processes | `Win32_Process`, sampled twice 300ms apart for a real `%CPU`; a process whose parent has exited is reported as `ppid 1`, so `reap` finds orphans the same way it does elsewhere |
+| thermal | always `ok` — see [below](#why-no-temperature-on-macos-or-windows) |
+| kill | `taskkill`, since MSYS signals never reach native Windows processes |
+
+Cygwin's `/proc/loadavg` is deliberately ignored: it exists on Git Bash but
+does not track the Windows scheduler, so trusting it would report a calm
+machine while it cooks.
+
+The `powershell.exe` spawn costs a few hundred ms, so heatsink classifies the
+command *before* reading load — a `git status` never pays it, and `check
+--json` reports `"load": null` when it never needed to measure.
+
+**Everything else is identical**: same rewrite table, same thresholds, same
+adapters, same fail-open behavior. The Claude Code plugin works unchanged.
+
+Prefer WSL2? That works too, and is the plain Linux path — but run the agent
+inside WSL as well. An agent on the Windows side with heatsink in WSL guards
+nothing: different process tree, different load.
 
 ## Adapter status
 
@@ -189,7 +318,7 @@ every one of them is an environment variable:
 | `HEATSINK_THROTTLE_RATIO` | `0.9` | load/cores at or above this → **throttle/warn** zone |
 | `HEATSINK_MIN_WORKERS` | `2` | floor on the worker count heatsink will rewrite down to (target is `max(MIN_WORKERS, cores/4)`) |
 
-## Why no temperature on macOS
+## Why no temperature on macOS or Windows
 
 macOS exposes no root-free CPU thermometer. The only interface that reports
 actual junction temperature, `powermetrics`, requires `sudo` — and a guard
@@ -202,6 +331,11 @@ causing the problem — and reads the OS's own throttle signal when it
 surfaces one (`pmset -g therm`, checking `CPU_Speed_Limit`). If macOS itself
 is throttling the CPU, heatsink treats that as thermal pressure and
 escalates the throttle-zone verdict straight to deny.
+
+Windows is worse: `MSAcpi_ThermalZoneTemperature` is the only vendor-neutral
+interface, most laptop firmware doesn't implement it, and where it does the
+reading is often the chassis rather than the CPU. So Windows reports `ok` and
+load governs alone, exactly as on macOS.
 
 On Linux, no such workaround is needed: `/sys/class/thermal/thermal_zone*/temp`
 is readable without elevated privileges, so heatsink reads real per-zone

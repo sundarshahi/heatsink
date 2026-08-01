@@ -41,9 +41,14 @@ EOF
 # Sets: HS_VERDICT HS_LOAD HS_CORES HS_THERMAL HS_REWRITTEN HS_REASON
 hs_evaluate() {
   local command="$1" lvl n rc
-  HS_LOAD=$(hs_load1); HS_CORES=$(hs_cores); HS_THERMAL=$(hs_thermal)
+  HS_CORES=$(hs_cores)
+  HS_LOAD=""; HS_THERMAL=ok
   HS_VERDICT=ok; HS_REWRITTEN=""; HS_REASON=""
+  # Classify BEFORE reading load: a light command's verdict never depends on
+  # it, and on Windows every read costs a powershell.exe spawn — which the
+  # PreToolUse hook would otherwise pay on every `ls`.
   [ -n "$command" ] && hs_is_heavy "$command" || return 0
+  HS_LOAD=$(hs_load1); HS_THERMAL=$(hs_thermal)
   lvl=$(hs_level "$HS_LOAD" "$HS_CORES" "$HS_THERMAL")
   case "$lvl" in
     2)
@@ -77,7 +82,8 @@ cmd_check() {
     command -v jq >/dev/null 2>&1 || { echo '{"verdict":"ok"}'; return 0; }  # fail open
     jq -n --arg v "$HS_VERDICT" --arg l "$HS_LOAD" --arg c "$HS_CORES" \
           --arg t "$HS_THERMAL" --arg r "$HS_REWRITTEN" --arg m "$HS_REASON" \
-      '{verdict:$v, load:($l|tonumber? // 0), cores:($c|tonumber? // 0), thermal:$t,
+      '{verdict:$v, load:(if $l=="" then null else ($l|tonumber? // 0) end),
+        cores:($c|tonumber? // 0), thermal:$t,
         rewritten:(if $r=="" then null else $r end),
         reason:(if $m=="" then null else $m end)}'
   else
@@ -169,15 +175,15 @@ cmd_reap() {
   echo
   echo "sending SIGTERM..."
   # shellcheck disable=SC2086
-  kill $pids 2>/dev/null || true
+  hs_kill $pids || true
   sleep 5
   local survivors=""
   local p
-  for p in $pids; do kill -0 "$p" 2>/dev/null && survivors="$survivors $p"; done
+  for p in $pids; do hs_alive "$p" && survivors="$survivors $p"; done
   if [ -n "$survivors" ]; then
     echo "sending SIGKILL to survivors:$survivors"
     # shellcheck disable=SC2086
-    kill -9 $survivors 2>/dev/null || true
+    hs_kill9 $survivors || true
   fi
   echo "done."
 }

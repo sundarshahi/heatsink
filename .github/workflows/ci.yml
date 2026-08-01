@@ -18,3 +18,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y bats shellcheck jq
       - run: make lint
       - run: make test
+
+  # Windows runs the same suite under Git Bash. The point is the real-machine
+  # signal tests: they exercise the powershell.exe backends, which nothing on
+  # macOS or Linux can. No `make lint` — shellcheck already ran twice above.
+  test-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install -g bats
+      - run: bats tests/
