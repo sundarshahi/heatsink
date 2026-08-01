@@ -61,3 +61,22 @@ setup() {
   HEATSINK_FAKE_PS="$FIXTURES/ps-adversarial.txt" run hs_orphans
   [[ "$output" == *"30008"* ]] || return 1
 }
+
+# hs_win_ps can't run here, but its OUTPUT CONTRACT can: it emits the same six
+# columns with dead-parent processes renumbered to ppid 1 and the owner left as
+# "-" for anything it declined to resolve. These assert procs.sh reads that
+# shape correctly — if the contract drifts, reap on Windows goes wrong.
+@test "windows shape: dead-parent hot burner is reaped, live-parent one is not" {
+  HEATSINK_FAKE_PS="$FIXTURES/ps-windows.txt" HEATSINK_TEST_USER=MANISH run hs_orphans
+  [[ "$output" == *"7412"* ]] || return 1   # ppid normalized to 1, >90%, >1h
+  [[ "$output" == *"9003"* ]] || return 1   # yes.exe — burner profile, any cpu
+  [[ "$output" != *"9002"* ]] || return 1   # parent still alive
+  [[ "$output" != *"9004"* ]] || return 1   # 88% — under the bar
+}
+
+@test "windows shape: unresolved owner, other users, and system exes never reaped" {
+  HEATSINK_FAKE_PS="$FIXTURES/ps-windows.txt" HEATSINK_TEST_USER=MANISH run hs_orphans
+  [[ "$output" != *"8100"* ]] || return 1   # owner "-" never matches the user
+  [[ "$output" != *"8104"* ]] || return 1   # SYSTEM-owned
+  [[ "$output" != *"8300"* ]] || return 1   # ours and hot, but denylisted
+}

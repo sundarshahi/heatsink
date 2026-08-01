@@ -1,0 +1,8 @@
+  PID  PPID USER       %CPU ELAPSED COMMAND
+7412 1 MANISH 97.3 03:41:22 C:\Users\MANISH\AppData\Local\node\node.exe vitest run
+8100 1 - 99.1 12:00:05 C:\Windows\System32\svchost.exe -k netsvcs
+8104 1 SYSTEM 99.4 20:11:03 C:\Windows\System32\csrss.exe
+8300 1 MANISH 99.5 06:00:00 C:\Windows\explorer.exe
+9002 6120 MANISH 99.9 04:00:00 C:\msys64\usr\bin\yes.exe
+9003 1 MANISH 12.0 00:31:40 C:\Program Files\Git\usr\bin\yes.exe
+9004 1 MANISH 88.0 05:00:00 C:\Users\MANISH\node.exe --idle-ish

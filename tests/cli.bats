@@ -7,7 +7,9 @@ setup() {
 }
 
 @test "check --command with missing value does not hang" {
-  run bash -c 'ulimit -t 2; "$1" check --command' _ "$HS"
+  # MSYS bash can't set RLIMIT_CPU and says so on stderr, which `run` folds
+  # into $output. The limit is a backstop against a hang, not the assertion.
+  run bash -c 'ulimit -t 2 2>/dev/null; "$1" check --command' _ "$HS"
   [ "$status" -eq 0 ] || return 1
   [ "$output" = "ok" ] || return 1
 }
@@ -41,6 +43,13 @@ setup() {
 @test "check --json shape" {
   HEATSINK_FAKE_LOAD=9.5 run "$HS" check --command "npx vitest run" --json
   echo "$output" | jq -e '.verdict=="throttle" and .rewritten=="npx vitest run --maxWorkers=2" and .cores==10' >/dev/null
+}
+
+# Light commands skip the load read entirely (a powershell.exe spawn on
+# Windows), so the field reports null rather than a made-up zero.
+@test "check --json: load is null when the command is not heavy" {
+  HEATSINK_FAKE_LOAD=9.5 run "$HS" check --command "git status" --json
+  echo "$output" | jq -e '.verdict=="ok" and .load==null' >/dev/null
 }
 
 @test "check: thermal pressure escalates throttle zone to deny" {
